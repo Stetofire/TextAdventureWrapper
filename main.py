@@ -1,3 +1,6 @@
+import os
+import json
+
 # ~~~~~~~~ Declaration of Constants ~~~~~~~~
 COMMANDS = [
     {"command":"exit","description":"Exits the game (see also \"quit\")"},
@@ -112,22 +115,50 @@ def display_inventory(game, page, inv):
         description += "\n{0}\t\"{1}\"".format(item.capitalize(),describe(game, page, inv[item]))
     return description
 
-def game_load(title):
-    print("Loading game {0}...".format(title.capitalize()))
-    print("TODO: implement saved game loading from json files")
-    if (False): # if file exists
-        pass    # open file and load
-    else:
-        game = GAME_DEFAULT
-        player = {"name":"player","inventory":{}}
-        page = "start"
+def game_query(pathway):
+    games = []
+    for g in os.scandir(pathway):
+        if g.is_file():
+            name = g.name.split("_")[0]
+            desc = g.name.split("_")[1].split(".")[0]
+            games.append([g,name,desc])
+    return games
+
+def game_list():
+    print ("Current adventures available:")
+    for g in GAMES:
+        print("{0}:\t\"{1}\"".format(g[1],g[2]))
+            
+def game_load(game_info):
+    game = {}
+    player = {}
+    page = ""
+    #print("*** GAME LOAD loading game ",end="")
+    #print(game_info,end="")
+    #print(game_info[0].name)
+    print("Loading game {0}...".format(game_info[1].capitalize()))
+    try:
+        if os.path.isfile(game_info[0]): # if file exists
+            # open file and load
+            with open(game_info[0]) as f:
+                game = json.load(f)
+                print("TODO: implement game state loading in game_load()")
+                player = {"name":"player","inventory":{}}
+                page = "start"
+                #print("*** GAME LOAD loaded game: ",end="")
+                #print(game)
+    except FileNotFoundError:
+        pass
     return game, player, page
 
 def game_save(player):
     print("Saved! (... he lied. (TODO))")
 
-def game_run(title):
-    game, player, page = game_load(title)
+def game_run(game_info):
+    game, player, page = game_load(game_info)
+    if not game:
+        print("ERROR LOADING GAME. ABORTING ATTEMPT")
+        return -1
     print("\nWelcome to "+game["title"]+"!")
 
 # ~~~~~~~~ Main Game Loop ~~~~~~~~
@@ -246,16 +277,12 @@ def game_run(title):
         else:
             print("Unknown command. Type \"help\" for a list of commands")
         command = input("> ").lower().split(" ")
-    print("Thanks for playing {0}!\n".format(game["title"]))
+    return 1
 
-def game_list():
-    print ("Current adventures available:")
-    for g in GAMES:
-        print("{0}:\t\"{1}\"".format(g[0],g[1]))
 
 # ~~~~~~~~ Wrapper Loop ~~~~~~~~
-print("TODO: load installed games")
-GAMES = [[GAME_DEFAULT["title"],GAME_DEFAULT["description"]]]
+pathway = "adventures/"
+GAMES = game_query(pathway)
 while(True):
     # prompt for game
     game_list()
@@ -263,9 +290,19 @@ while(True):
     if title == "quit" or title == "exit":
         break
     # run game
+    success = 0
     for g in GAMES:
-        if title == g[0].lower():
-            game_run(title)
+        if title == g[1].lower():
+            #print("*** MAIN loading game ",end="")
+            #print(g,end="")
+            #print(" at pathway ",end="")
+            #print(pathway,end="")
+            success = game_run(g)
             break
+    if success == 0:
         print("Game not found. ",end="")
+    elif success < 0:
+        print("Error loading game. ",end="")
+    else:
+        print("Hope you enjoyed{0}! ".format(title),end="")
 print("Thanks for playing!")
