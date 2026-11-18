@@ -57,7 +57,7 @@ def look(game, page, player, command): # Looks generally. "command" is a List of
     else:   # the player wants to examine the room itself
         print(describe(game, page))
         
-def describe(game, page, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tags}",{"tags":"extra text"}] since it will be used in the format_map function.
+def describe(game, page, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tag}",{"tag":["disabled text","enabled text"] since it will be used in the format_map function.
     description = ""
     applicable = {}
     if item:
@@ -65,13 +65,16 @@ def describe(game, page, item={}): #    Describes either an item or the room its
         #print(item)
         if len(item["description"])>1:
             for d in item["description"][1]:
-                if d in game["pages"][page]["props"] or d in item["tags"]:
-                    applicable[d] = item["description"][1][d]
-                else:
+                if d in game["pages"][page]["props"] or d in item["tags"]: # exists 
+                    if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]) or ("active" in item["tags"] and item["tags"]["active"]): # is active
+                        applicable[d] = item["description"][1][d][1] # show active description
+                    else: # not active
+                        applicable[d] = item["description"][1][d][0] # show inactive description
+                else: # doesn't exist
                     applicable[d] = ""
         description = item["description"][0].format_map(applicable)
         # if item has contents, display only if unlocked
-        if "contents" in item and (("lock" not in item["tags"]) or ("lock" in item["tags"] and item["tags"]["lock"] in item["tags"])):
+        if "contents" in item and (("lock" not in item["tags"]) or ("locked" not in item["tags"] or not item["tags"]["locked"])): # is unlocked
             if len(item["contents"]) > 0:
                 description += "\nIt also contains the following:"
                 # print("item in loop contents: ",end="")
@@ -79,11 +82,19 @@ def describe(game, page, item={}): #    Describes either an item or the room its
                 description += display_inventory(game, page, item["contents"])
             else:
                 description += " It's empty"
-    else:
+    else: # look at room
         for d in game["pages"][page]["description"][1]:
             if d in game["pages"][page]["props"]:
-                applicable[d] = game["pages"][page]["description"][1][d]
-            else:
+                if "active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["active"]: # is active
+                    applicable[d] = game["pages"][page]["description"][1][d][1]# show active description
+                else: # not active
+                    applicable[d] = game["pages"][page]["description"][1][d][0]# show inactive description
+            elif d in player["inventory"]: 
+                if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # is active
+                    applicable[d] = game["pages"][page]["description"][1][d][1]# show active description
+                else: # not active
+                    applicable[d] = game["pages"][page]["description"][1][d][0]# show inactive description
+            else: # description tag not in room or inv
                 applicable[d] = ""
         description = game["pages"][page]["description"][0].format_map(applicable)
     return description
@@ -181,15 +192,26 @@ def game_run(game_info):
         elif (command[0] == "go" or command[0] == "move"):      # MOVE
             if len(command) >= 2:
                 destination = ""
+                reason = ""
                 for e in game["pages"][page]["exits"]:
                     if command[1] == e:
-                        destination = game["pages"][page]["exits"][e]
-                        break
+                        if type(game["pages"][page]["exits"][e]) is list: # if exit is conditional
+                            metConditions = True
+                            for c in game["pages"][page]["exits"][e]:# make sure every condition is met
+                                # object must exist
+                               if game["pages"][page]["exits"][e][c]:# tag does not match
+                                   metConditions = False
+                            if metConditions:
+                                destination = game["pages"][page]["exits"][e]
+                            else: # else display error message
+                                reason = game["pages"][page]["exits"][e]
+                        else: #unconditional
+                            destination = game["pages"][page]["exits"][e]
                 if destination:
                     page = destination
                     print("You move {0}ward. {1}".format(command[1],describe(game, page)))
                 else:
-                    print("That direction is not traversable")
+                    print("That direction is not traversable{0}".format(reason))
             else:
                 print("Invalid argument. Useage: \"go/move [destination]\"")
         elif (command[0] == "look"):        # LOOK
