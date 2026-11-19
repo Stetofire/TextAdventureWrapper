@@ -1,18 +1,19 @@
 {   "title" : "Test",
     "description": "Test Adventure",
     "pages" : {
-        "template":{"description":["\"Describes{ITEM}\"",{"ITEM":[" INACTIVE"," ACTIVE"]}],
-                    "props":{"ITEM":{"description":[""{}]}
-                }
+        "template":{"description":["{ITEM}",{"ITEM":[[" IN ROOM INACTIVE"," IN ROOM ACTIVE"],[" IN INV INACTIVE"," IN INV ACTIVE"]}],
+                    "props":{"ITEM":{"description":["",{}],
+                                     "tags":{"takeable":1,"active":0,"key":"SOMETHING","lock":"SOMETHING","locked":0,"contents":{}}}
+                    }
             },
-        "start":{"description":["It's the beginning. There's {test}an extra room to the North.",{"test":["","a test item here and "]}],
+        "start":{"description":["It's the beginning. There's {test}an extra room to the North.",{"test":["a test item here and ",""]}],
                  "props":{
                      "test":{"description":["It's an item.{chtest}",{"chtest":[" It's reacting with the chtest in the room",""]}],"tags":{"takeable":1,"key":"testkey","lock":"testkey2"},"contents":{
                          "secrettestitem":{"description":["It's the third and final test item which says go to the Win from the start. ",{}],"tags":{}}}}},
                  "exits":{
                      "north":"extra",
                      "win":"win"}},
-        "extra":{"description":["You are in the extra room. It's extra. There's {chtest}a room to the South that starts this adventure.",{"chtest":["a chtest here and ",""}],
+        "extra":{"description":["You are in the extra room. It's extra. There's {chtest}a room to the South that starts this adventure.",{"chtest":["a chtest here and ",""]}],
                  "props":{
                      "chtest":{"description":["It's a test chest. It has a test-shaped lock on it{testkey}.",{"testkey":[" that is currently open",""]}],"tags":{"lock":"testkey"},"contents":{
                          "test2":{"description":["It's a second test item and can be used to open the first test item",{}],"tags":{"takeable":1,"key":"testkey2"}}}}},

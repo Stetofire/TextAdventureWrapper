@@ -16,31 +16,6 @@ COMMANDS = [
     {"command":"take","description":"Puts the item in your inventory. Useage: \"take [item]\""},
     {"command":"use","description":"Applies an item to another or something in a room. Useage: \"use [item1] [item2]\""},
 ]
-GAME_DEFAULT = {
-    "title" : "Test",
-    "description": "Test Adventure",
-    "pages" : { # "page":{"description":["text{tag}",{"tag":"extra"}],"props":{"item":{}},"exits":{}}
-        "start":{"description":["It's the beginning. There's {test}an extra room to the North.",{"test":"a test item here and "}],
-                 "props":{
-                     "test":{"description":["It's an item{chtest}",{"chtest":". It's reacting with the chtest in the room"}],"tags":{"takeable":True,"key":"testkey","lock":"testkey2"},"contents":{
-                         "secrettestitem":{"description":["It's the third and final test item which says go to the Win from the start. ",{}],"tags":{}}}}},
-                 "exits":{
-                     "north":"extra",
-                     "win":"win"}},
-        "extra":{"description":["You are in the extra room. It's extra. There's {chtest}a room to the South that starts this adventure.",{"chtest":"a chtest here and "}],
-                 "props":{
-                     "chtest":{"description":["It's a test chest. It has a test-shaped lock on it{testkey}.",{"testkey":" that is currently open"}],"tags":{"lock":"testkey"},"contents":{
-                         "test2":{"description":["It's a second test item and can be used to open the first test item",{}],"tags":{"takeable":True,"key":"testkey2"}}}}},
-                 "exits":{
-                     "south":"start"}},
-        "win":{"description":["This is the winning room! YOU HAVE WON!{trophy}",{"trophy":" CLAIM YOUR TROPHY!"}],
-                 "props":{
-                     "trophy":{"description":["A beautiful golden trophy{spotlight}",{"spotlight":". It sparkles in the spotlight's beam"}],"tags":{"takeable":True}},
-                     "spotlight":{"description":["A beam of golden light",{}],"tags":{}}},
-                 "exits":{
-                     "lose":"start"}},
-    }
-}
 
 # ~~~~~~~~ Declaration of Functions ~~~~~~~~
 
@@ -48,52 +23,59 @@ def look(game, page, player, command): # Looks generally. "command" is a List of
     if len(command)>1:  # the player wants to examine an item in their inventory or a prop in the room
         # describe item in inventory
         if command[1] in player["inventory"]:
-            print("In your inventory you see this {0}: \"{1}\"".format(command[1],describe(game, page, player["inventory"][command[1]])))
+            print("In your inventory you see this {0}: \"{1}\"".format(command[1],describe(game, page, player, player["inventory"][command[1]])))
         # describe prop in room
         elif command[1] in game["pages"][page]["props"]:
-            print("You see a {0} in the room: \"{1}\"".format(command[1],describe(game, page, game["pages"][page]["props"][command[1]])))
+            print("You see a {0} in the room: \"{1}\"".format(command[1],describe(game, page, player, game["pages"][page]["props"][command[1]])))
         else:
             print("That item does not exist")
     else:   # the player wants to examine the room itself
-        print(describe(game, page))
+        print(describe(game, page, player))
         
-def describe(game, page, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tag}",{"tag":["disabled text","enabled text"] since it will be used in the format_map function.
+def describe(game, page, player, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tag}",{"tag":[["disabled prop in room","enabled prop in room"],["disabled item in inv","enabled item in inv"]]. It will be used in the format_map function.
     description = ""
     applicable = {}
     if item:
-        #print("*** describing an item: ",end="")
-        #print(item)
-        if len(item["description"])>1:
+        breakpoint()
+        if type(item["description"]) is list and len(item["description"])>1: # if formatting is correct for conditional sections
             for d in item["description"][1]:
-                if d in game["pages"][page]["props"] or d in item["tags"]: # exists 
-                    if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]) or ("active" in item["tags"] and item["tags"]["active"]): # is active
-                        applicable[d] = item["description"][1][d][1] # show active description
-                    else: # not active
-                        applicable[d] = item["description"][1][d][0] # show inactive description
+                if d in game["pages"][page]["props"]: # exists in room
+                    if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]): # in-room active
+                        applicable[d] = item["description"][1][d][0][1] # show in-room active description
+                    else: # in-room inactive
+                        applicable[d] = item["description"][1][d][0][0] # show in-room inactive description
+                elif d in player["inventory"]: # exists in iventory
+                    if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # in-inv active
+                        applicable[d] = item["description"][1][d][1][1] # show in-inv active description
+                    else: # in-inv inactive
+                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
+                elif d in item["tags"]: # exists in item itself
+                    if item["tags"][d]: # in-item truthy
+                        applicable[d] = item["description"][1][d][1][1] # show in-inv active description
+                    else: # in-item falsy
+                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
                 else: # doesn't exist
                     applicable[d] = ""
-        description = item["description"][0].format_map(applicable)
+            description = item["description"][0].format_map(applicable)
         # if item has contents, display only if unlocked
         if "contents" in item and (("lock" not in item["tags"]) or ("locked" not in item["tags"] or not item["tags"]["locked"])): # is unlocked
             if len(item["contents"]) > 0:
                 description += "\nIt also contains the following:"
-                # print("item in loop contents: ",end="")
-                # print(item["contents"])
                 description += display_inventory(game, page, item["contents"])
             else:
                 description += " It's empty"
     else: # look at room
         for d in game["pages"][page]["description"][1]:
-            if d in game["pages"][page]["props"]:
-                if "active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["active"]: # is active
-                    applicable[d] = game["pages"][page]["description"][1][d][1]# show active description
-                else: # not active
-                    applicable[d] = game["pages"][page]["description"][1][d][0]# show inactive description
-            elif d in player["inventory"]: 
-                if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # is active
-                    applicable[d] = game["pages"][page]["description"][1][d][1]# show active description
-                else: # not active
-                    applicable[d] = game["pages"][page]["description"][1][d][0]# show inactive description
+            if d in game["pages"][page]["props"]:# exists in room
+                if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]): # in-room active
+                    applicable[d] = item["description"][1][d][0][1] # show in-room active description
+                else: # in-room inactive
+                    applicable[d] = item["description"][1][d][0][0] # show in-room inactive description
+            elif d in player["inventory"]: # exists in iventory
+                if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # in-inv active
+                    applicable[d] = item["description"][1][d][1][1] # show in-inv active description
+                else: # in-inv inactive
+                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
             else: # description tag not in room or inv
                 applicable[d] = ""
         description = game["pages"][page]["description"][0].format_map(applicable)

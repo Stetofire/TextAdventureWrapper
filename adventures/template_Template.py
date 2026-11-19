@@ -1,7 +1,7 @@
 {   "title" : "template",
     "description": "Template",
     "pages" : {
-        "start":{"description":["Welcome message",{}],
+        "START":{"description":["WELCOME MESSAGE",{}],
                  "props":{
                      },
                  "exits":{
