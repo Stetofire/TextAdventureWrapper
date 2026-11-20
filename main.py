@@ -23,6 +23,7 @@ def look(game, page, player, command): # Looks generally. "command" is a List of
     if len(command)>1:  # the player wants to examine an item in their inventory or a prop in the room
         # describe item in inventory
         if command[1] in player["inventory"]:
+            #TODO add depth search to inv and room Look
             print("In your inventory you see this {0}: \"{1}\"".format(command[1],describe(game, page, player, player["inventory"][command[1]])))
         # describe prop in room
         elif command[1] in game["pages"][page]["props"]:
@@ -35,8 +36,8 @@ def look(game, page, player, command): # Looks generally. "command" is a List of
 def describe(game, page, player, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tag}",{"tag":[["disabled prop in room","enabled prop in room"],["disabled item in inv","enabled item in inv"]]. It will be used in the format_map function.
     description = ""
     applicable = {}
+    #breakpoint()
     if item:
-        breakpoint()
         if type(item["description"]) is list and len(item["description"])>1: # if formatting is correct for conditional sections
             for d in item["description"][1]:
                 if d in game["pages"][page]["props"]: # exists in room
@@ -61,21 +62,21 @@ def describe(game, page, player, item={}): #    Describes either an item or the 
         if "contents" in item and (("lock" not in item["tags"]) or ("locked" not in item["tags"] or not item["tags"]["locked"])): # is unlocked
             if len(item["contents"]) > 0:
                 description += "\nIt also contains the following:"
-                description += display_inventory(game, page, item["contents"])
+                description += display_inventory(game, page, player, item["contents"])
             else:
                 description += " It's empty"
     else: # look at room
         for d in game["pages"][page]["description"][1]:
             if d in game["pages"][page]["props"]:# exists in room
                 if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]): # in-room active
-                    applicable[d] = item["description"][1][d][0][1] # show in-room active description
+                    applicable[d] = game["pages"][page]["description"][1][d][0][1] # show in-room active description
                 else: # in-room inactive
-                    applicable[d] = item["description"][1][d][0][0] # show in-room inactive description
+                    applicable[d] = game["pages"][page]["description"][1][d][0][0] # show in-room inactive description
             elif d in player["inventory"]: # exists in iventory
                 if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # in-inv active
-                    applicable[d] = item["description"][1][d][1][1] # show in-inv active description
+                    applicable[d] = game["pages"][page]["description"][1][d][1][1] # show in-inv active description
                 else: # in-inv inactive
-                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
+                    applicable[d] = game["pages"][page]["description"][1][d][1][1] # show in-inv inactive description
             else: # description tag not in room or inv
                 applicable[d] = ""
         description = game["pages"][page]["description"][0].format_map(applicable)
@@ -86,7 +87,7 @@ def depth_search(items, target):   # item is a dictionary of objects but target 
         if c == target:
             return items[c]
         else:
-            if "contents" in items[c] and ("lock" not in items[c]["tags"] or ("lock" in items[c]["tags"] and items[c]["tags"]["lock"] in items[c]["tags"])):
+            if "contents" in items[c] and ("locked" not in items[c]["tags"] or ("locked" in items[c]["tags"] and not items[c]["tags"]["locked"])):
                 return depth_search(items[c]["contents"], target)
     else:
         return {}
@@ -95,17 +96,15 @@ def depth_search_pop(items, target):   # item is a dictionary of objects but tar
         if c == target:
             return items.pop(c)
         else:
-            if "contents" in items[c] and ("lock" not in items[c]["tags"] or ("lock" in items[c]["tags"] and items[c]["tags"]["lock"] in items[c]["tags"])):
+            if "contents" in items[c] and ("locked" not in items[c]["tags"] or ("locked" in items[c]["tags"] and not items[c]["tags"]["locked"])):
                 return depth_search_pop(items[c]["contents"], target)
     else:
         return {}
 
-def display_inventory(game, page, inv):
-    #print("*** DISPLAY INVENTORY: entire inventory:",end="")
-    #print(inv)
+def display_inventory(game, page, player, inv):
     description = ""
     for item in inv:
-        description += "\n{0}\t\"{1}\"".format(item.capitalize(),describe(game, page, inv[item]))
+        description += "\n{0}\t\"{1}\"".format(item.capitalize(),describe(game, page, player, inv[item]))
     return description
 
 def game_query(pathway):
@@ -191,7 +190,7 @@ def game_run(game_info):
                             destination = game["pages"][page]["exits"][e]
                 if destination:
                     page = destination
-                    print("You move {0}ward. {1}".format(command[1],describe(game, page)))
+                    print("You move {0}ward. {1}".format(command[1],describe(game, page, player)))
                 else:
                     print("That direction is not traversable{0}".format(reason))
             else:
@@ -201,12 +200,10 @@ def game_run(game_info):
         elif (command[0] == "take"):        # TAKE
             if len(command) >= 2:
                 foundItem = depth_search(game["pages"][page]["props"], command[1])
-                #print("** TAKE: found item is: ",end="")
-                #print(foundItem)
                 if foundItem:
                     if "takeable" in foundItem["tags"] and foundItem["tags"]["takeable"]:
                         player["inventory"][command[1]] = depth_search_pop(game["pages"][page]["props"], command[1])
-                        print("You take the {0}. \"{1}\"".format(command[1],describe(game, page, player["inventory"][command[1]])))
+                        print("You take the {0}. \"{1}\"".format(command[1],describe(game, page, player, player["inventory"][command[1]])))
                     else:
                         print("That item is not takeable")
                 else:
@@ -218,53 +215,55 @@ def game_run(game_info):
                 # if use is applicable (inv to room, inv to inv, room to room, room to inv)
                 used = False
                 if command[1] in player["inventory"]:   # if the player has the applying item
-                    #print("*** inv to... ",end="")
                     if command[2] in game["pages"][page]["props"]: # if the receiving prop is in the room
-                        if "key" in player["inventory"][command[1]]["tags"] and "lock" in game["pages"][page]["props"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == game["pages"][page]["props"][command[2]]["tags"]["lock"]: # if applicable
+                        if "key" in player["inventory"][command[1]]["tags"] and "lock" in game["pages"][page]["props"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == game["pages"][page]["props"][command[2]]["tags"]["lock"]: # if lock-and-key combo match, change "locked" status
+                            if "locked" not in game["pages"][page]["props"][command[2]]["tags"]:
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
                             # inv to room
-                            game["pages"][page]["props"][command[2]]["tags"][player["inventory"][command[1]]["tags"]["key"]] = player["inventory"][command[1]]["tags"]["key"]
+                            if game["pages"][page]["props"][command[2]]["tags"]["locked"]: # if locked
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
+                            else: # else unlocked
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
                             used = True
-                            #print("..room")
-                            #print("After \"use\" command, these are the relevent objects:")
-                            #print(player["inventory"][command[1]])
-                            #print(game["pages"][page]["props"][command[2]])
                         else:
                             print("There's no reaction when you use your {0} on the {1} in the room".format(command[1],command[2]))
                     elif command[2] in player["inventory"]: # if the player has the receiving item
                         if "key" in player["inventory"][command[1]]["tags"] and "lock" in player["inventory"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == player["inventory"][command[2]]["tags"]["lock"]: # if applicable
                             # inv to inv
-                            player["inventory"][command[2]]["tags"][player["inventory"][command[1]]["tags"]["key"]] = player["inventory"][command[1]]["tags"]["key"]
+                            if "locked" not in player["inventory"][command[2]]["tags"]:
+                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                            if player["inventory"][command[2]]["tags"]["locked"]:
+                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                            else:
+                                player["inventory"][command[2]]["tags"]["locked"] = 1
                             used = True
-                            #print("..inv")
-                            #print("After \"use\" command, these are the relevent objects:")
-                            #print(player["inventory"][command[1]])
-                            #print(player["inventory"][command[2]])
                         else:
                             print("There's no reaction when you use your {0} on your {1}".format(command[1],command[2]))
                     else:
                         print("You can't find a {0} to use your {1} on".format(command[2],command[1]))
                 elif command[1] in game["pages"][page]["props"]: # if the applying prop is in the room
-                    #print("*** room to... ",end="")
                     if command[2] in game["pages"][page]["props"]: # if the receiving prop is in the room
                         if "key" in game["pages"][page]["props"][command[1]]["tags"] and "lock" in game["pages"][page]["props"][command[2]]["tags"] and game["pages"][page]["props"][command[1]]["tags"]["key"] == game["pages"][page]["props"][command[2]]["tags"]["lock"]: # if applicable
                             # room to room
-                            game["pages"][page]["props"][command[2]]["tags"][game["pages"][page]["props"][command[1]]["tags"]["key"]] = game["pages"][page]["props"][command[1]]["tags"]["key"]
+                            if "locked" not in game["pages"][page]["props"][command[2]]["tags"]:
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
+                            if game["pages"][page]["props"][command[2]]["tags"]["locked"]: # if locked
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
+                            else: # else unlocked
+                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
                             used = True
-                            #print("..room")
-                            #print("After \"use\" command, these are the relevent objects:")
-                            #print(game["pages"][page]["props"][command[1]])
-                            #print(game["pages"][page]["props"][command[2]])
                         else:
                             print("There's no reaction when you try to use the {0} on the room's {1}".format(command[1],command[2]))
                     elif command[2] in player["inventory"]: # if the player has the receiving item
                         if "key" in game["pages"][page]["props"][command[1]]["tags"] and "lock" in player["inventory"][command[2]]["tags"] and game["pages"][page]["props"][command[1]]["tags"]["key"] == player["inventory"][command[2]]["tags"]["lock"]: # if applicable
                             # room to inv
-                            player["inventory"][command[2]]["tags"][game["pages"][page]["props"][command[1]]["tags"]["key"]] = game["pages"][page]["props"][command[1]]["tags"]["key"]
+                            if "locked" not in player["inventory"][command[2]]["tags"]:
+                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                            if player["inventory"][command[2]]["tags"]["locked"]:
+                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                            else:
+                                player["inventory"][command[2]]["tags"]["locked"] = 1
                             used = True
-                            #print("..inv")
-                            #print("After \"use\" command, these are the relevent objects:")
-                            #print(game["pages"][page]["props"][command[1]])
-                            #print(player["inventory"][command[2]])
                         else:
                             print("There's no reaction when you use the {0} from the room on your {1}".format(command[1],command[2]))
                     else:
@@ -277,7 +276,7 @@ def game_run(game_info):
             else:
                 print("Invalid argument. Useage: \"use [item1] [item2]\"")
         elif (command[0] == "inventory" or command[0] == "inv"):        # INVENTORY
-            print(display_inventory(game, page, player["inventory"]))
+            print(display_inventory(game, page, player, player["inventory"]))
         else:
             print("Unknown command. Type \"help\" for a list of commands")
         command = input("> ").lower().split(" ")
