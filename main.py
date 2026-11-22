@@ -27,39 +27,38 @@ def look(game, page, player, command): # Looks generally. "command" is a List of
             print("In your inventory you see this {0}: \"{1}\"".format(command[1],describe(game, page, player, player["inventory"][command[1]])))
         # describe prop in room
         elif command[1] in game["pages"][page]["props"]:
-            print("You see a {0} in the room: \"{1}\"".format(command[1],describe(game, page, player, game["pages"][page]["props"][command[1]])))
+            print("You see a {0} here: \"{1}\"".format(command[1],describe(game, page, player, game["pages"][page]["props"][command[1]])))
         else:
-            print("That item does not exist")
+            print("You don't see a {0} around here.".format(command[1]))
     else:   # the player wants to examine the room itself
         print(describe(game, page, player))
         
 def describe(game, page, player, item={}): #    Describes either an item or the room itself but only uses certain parts of the string if a matching Prop is in the room or if an item has a matching tag. The "description" object in the data structure must be in this format:  ["text with {tag}",{"tag":[["disabled prop in room","enabled prop in room"],["disabled item in inv","enabled item in inv"]]. It will be used in the format_map function.
     description = ""
     applicable = {}
-    #breakpoint()
     if item:
         if type(item["description"]) is list and len(item["description"])>1: # if formatting is correct for conditional sections
             for d in item["description"][1]:
                 if d in game["pages"][page]["props"]: # exists in room
-                    if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]): # in-room active
-                        applicable[d] = item["description"][1][d][0][1] # show in-room active description
-                    else: # in-room inactive
-                        applicable[d] = item["description"][1][d][0][0] # show in-room inactive description
+                    if ("locked" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["locked"]): # in-room locked
+                        applicable[d] = item["description"][1][d][0][1] # show in-room locked description
+                    else: # in-room unlocked
+                        applicable[d] = item["description"][1][d][0][0] # show in-room unlocked description
                 elif d in player["inventory"]: # exists in iventory
-                    if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # in-inv active
-                        applicable[d] = item["description"][1][d][1][1] # show in-inv active description
-                    else: # in-inv inactive
-                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
+                    if "locked" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["locked"]: # in-inv locked
+                        applicable[d] = item["description"][1][d][1][1] # show in-inv locked description
+                    else: # in-inv unlocked
+                        applicable[d] = item["description"][1][d][1][0] # show in-inv unlocked description
                 elif d in item["tags"]: # exists in item itself
                     if item["tags"][d]: # in-item truthy
-                        applicable[d] = item["description"][1][d][1][1] # show in-inv active description
+                        applicable[d] = item["description"][1][d][1][1] # show in-inv locked description
                     else: # in-item falsy
-                        applicable[d] = item["description"][1][d][1][0] # show in-inv inactive description
+                        applicable[d] = item["description"][1][d][1][0] # show in-inv unlocked description
                 else: # doesn't exist
                     applicable[d] = ""
             description = item["description"][0].format_map(applicable)
         # if item has contents, display only if unlocked
-        if "contents" in item and (("lock" not in item["tags"]) or ("locked" not in item["tags"] or not item["tags"]["locked"])): # is unlocked
+        if "contents" in item and (("locked" not in item["tags"]) or ("locked" in item["tags"] and not item["tags"]["locked"])): # is unlocked
             if len(item["contents"]) > 0:
                 description += "\nIt also contains the following:"
                 description += display_inventory(game, page, player, item["contents"])
@@ -68,21 +67,21 @@ def describe(game, page, player, item={}): #    Describes either an item or the 
     else: # look at room
         for d in game["pages"][page]["description"][1]:
             if d in game["pages"][page]["props"]:# exists in room
-                if ("active" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["active"]): # in-room active
-                    applicable[d] = game["pages"][page]["description"][1][d][0][1] # show in-room active description
-                else: # in-room inactive
-                    applicable[d] = game["pages"][page]["description"][1][d][0][0] # show in-room inactive description
+                if "locked" in game["pages"][page]["props"][d]["tags"] and game["pages"][page]["props"][d]["tags"]["locked"]: # in-room locked
+                    applicable[d] = game["pages"][page]["description"][1][d][0][1] # show in-room locked description
+                else: # in-room unlocked
+                    applicable[d] = game["pages"][page]["description"][1][d][0][0] # show in-room unlocked description
             elif d in player["inventory"]: # exists in iventory
-                if "active" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["active"]: # in-inv active
-                    applicable[d] = game["pages"][page]["description"][1][d][1][1] # show in-inv active description
-                else: # in-inv inactive
-                    applicable[d] = game["pages"][page]["description"][1][d][1][1] # show in-inv inactive description
+                if "locked" in player["inventory"][d]["tags"] and player["inventory"][d]["tags"]["locked"]: # in-inv locked
+                    applicable[d] = game["pages"][page]["description"][1][d][1][1] # show in-inv locked description
+                else: # in-inv unlocked
+                    applicable[d] = game["pages"][page]["description"][1][d][1][0] # show in-inv unlocked description
             else: # description tag not in room or inv
                 applicable[d] = ""
         description = game["pages"][page]["description"][0].format_map(applicable)
     return description
 
-def depth_search(items, target):   # item is a dictionary of objects but target is just the id of the item being searched for. Returns item in question but leaves it there else returns an empty item
+def depth_search(items, target):   # items is a dictionary of objects but target is just the id of the item being searched for. Returns item in question but leaves it there, otherwise returns an empty item
     for c in items:
         if c == target:
             return items[c]
@@ -171,28 +170,36 @@ def game_run(game_info):
             if (game_save(player)):
                 pass#print("Saved!")
         elif (command[0] == "go" or command[0] == "move"):      # MOVE
-            if len(command) >= 2:
+            if len(command) >= 2: # has a requested direction
                 destination = ""
                 reason = ""
                 for e in game["pages"][page]["exits"]:
                     if command[1] == e:
-                        if type(game["pages"][page]["exits"][e]) is list: # if exit is conditional
+                        if type(game["pages"][page]["exits"][e]) is list: # if exit is conditional. ["destination",{"item":{"key":"value"}},"reason"]
                             metConditions = True
-                            for c in game["pages"][page]["exits"][e]:# make sure every condition is met
-                                # object must exist
-                               if game["pages"][page]["exits"][e][c]:# tag does not match
-                                   metConditions = False
+                            for c in game["pages"][page]["exits"][e][1]:# make sure every prop has every condition met
+                                item = depth_search(game["pages"][page]["props"], c)
+                                if not item: 
+                                    item = depth_search(player["inventory"], c) # check inv next
+                                if item: # object must exist
+                                    for t in game["pages"][page]["exits"][e][1][c]: 
+                                        if game["pages"][page]["exits"][e][1][c][t] != item["tags"][t]:# if tag does not match
+                                            metConditions = False
+                                            break
+                                else: # item not found
+                                    metConditions = False
                             if metConditions:
-                                destination = game["pages"][page]["exits"][e]
-                            else: # else display error message
-                                reason = game["pages"][page]["exits"][e]
+                                destination = game["pages"][page]["exits"][e][0]
+                                break
+                            else: # if doesn't meet requirements, display error message
+                                reason = game["pages"][page]["exits"][e][2]
                         else: #unconditional
                             destination = game["pages"][page]["exits"][e]
                 if destination:
                     page = destination
                     print("You move {0}ward. {1}".format(command[1],describe(game, page, player)))
                 else:
-                    print("That direction is not traversable{0}".format(reason))
+                    print("That direction is not traversable. {0}".format(reason))
             else:
                 print("Invalid argument. Useage: \"go/move [destination]\"")
         elif (command[0] == "look"):        # LOOK
@@ -207,7 +214,7 @@ def game_run(game_info):
                     else:
                         print("That item is not takeable")
                 else:
-                    print("You don't see anything by that name")
+                    print("There's not a {0} here for you to take.".format(command[1]))
             else:
                 print("Invalid argument. Useage: \"take [item]\"")
         elif (command[0] == "use"):        # USE
@@ -226,7 +233,7 @@ def game_run(game_info):
                                 game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
                             used = True
                         else:
-                            print("There's no reaction when you use your {0} on the {1} in the room".format(command[1],command[2]))
+                            print("There's no reaction when you use your {0} on the {1} here".format(command[1],command[2]))
                     elif command[2] in player["inventory"]: # if the player has the receiving item
                         if "key" in player["inventory"][command[1]]["tags"] and "lock" in player["inventory"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == player["inventory"][command[2]]["tags"]["lock"]: # if applicable
                             # inv to inv
