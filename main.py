@@ -221,62 +221,71 @@ def game_run(game_info):
             if len(command) >= 3:
                 # if use is applicable (inv to room, inv to inv, room to room, room to inv)
                 used = False
-                if command[1] in player["inventory"]:   # if the player has the applying item
-                    if command[2] in game["pages"][page]["props"]: # if the receiving prop is in the room
-                        if "key" in player["inventory"][command[1]]["tags"] and "lock" in game["pages"][page]["props"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == game["pages"][page]["props"][command[2]]["tags"]["lock"]: # if lock-and-key combo match, change "locked" status
-                            if "locked" not in game["pages"][page]["props"][command[2]]["tags"]:
-                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
+                item = depth_search(player["inventory"], command[1])
+                if item:   # if the player has the applying item
+                    item2 = depth_search(game["pages"][page]["props"], command[2])
+                    if item2: # if the receiving prop is in the room
+                        if "key" in item["tags"] and "lock" in item2["tags"] and item["tags"]["key"] == item2["tags"]["lock"]: # if lock-and-key combo match, change "locked" status
+                            if "locked" not in item2["tags"]:
+                                item2["tags"]["locked"] = 0
                             # inv to room
-                            if game["pages"][page]["props"][command[2]]["tags"]["locked"]: # if locked
+                            if item2["tags"]["locked"]: # if locked
                                 game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
                             else: # else unlocked
                                 game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
                             used = True
                         else:
                             print("There's no reaction when you use your {0} on the {1} here".format(command[1],command[2]))
-                    elif command[2] in player["inventory"]: # if the player has the receiving item
-                        if "key" in player["inventory"][command[1]]["tags"] and "lock" in player["inventory"][command[2]]["tags"] and player["inventory"][command[1]]["tags"]["key"] == player["inventory"][command[2]]["tags"]["lock"]: # if applicable
-                            # inv to inv
-                            if "locked" not in player["inventory"][command[2]]["tags"]:
-                                player["inventory"][command[2]]["tags"]["locked"] = 0
-                            if player["inventory"][command[2]]["tags"]["locked"]:
-                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                    else: # either the player has the receiving item or it doesn't exist
+                        item2 = depth_search(player["inventory"], command[2])
+                        if item2: #if in player inv
+                            if "key" in item["tags"] and "lock" in item2["tags"] and item["tags"]["key"] == item2["tags"]["lock"]: # if lock-and-key combo match, change "locked" status
+                                # inv to inv
+                                if "locked" not in item2["tags"]:
+                                    item2["tags"]["locked"] = 0
+                                if item2["tags"]["locked"]:
+                                    player["inventory"][command[2]]["tags"]["locked"] = 0
+                                else:
+                                    player["inventory"][command[2]]["tags"]["locked"] = 1
+                                used = True
                             else:
-                                player["inventory"][command[2]]["tags"]["locked"] = 1
-                            used = True
-                        else:
-                            print("There's no reaction when you use your {0} on your {1}".format(command[1],command[2]))
-                    else:
-                        print("You can't find a {0} to use your {1} on".format(command[2],command[1]))
-                elif command[1] in game["pages"][page]["props"]: # if the applying prop is in the room
-                    if command[2] in game["pages"][page]["props"]: # if the receiving prop is in the room
-                        if "key" in game["pages"][page]["props"][command[1]]["tags"] and "lock" in game["pages"][page]["props"][command[2]]["tags"] and game["pages"][page]["props"][command[1]]["tags"]["key"] == game["pages"][page]["props"][command[2]]["tags"]["lock"]: # if applicable
-                            # room to room
-                            if "locked" not in game["pages"][page]["props"][command[2]]["tags"]:
-                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
-                            if game["pages"][page]["props"][command[2]]["tags"]["locked"]: # if locked
-                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
-                            else: # else unlocked
-                                game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
-                            used = True
-                        else:
-                            print("There's no reaction when you try to use the {0} on the room's {1}".format(command[1],command[2]))
-                    elif command[2] in player["inventory"]: # if the player has the receiving item
-                        if "key" in game["pages"][page]["props"][command[1]]["tags"] and "lock" in player["inventory"][command[2]]["tags"] and game["pages"][page]["props"][command[1]]["tags"]["key"] == player["inventory"][command[2]]["tags"]["lock"]: # if applicable
-                            # room to inv
-                            if "locked" not in player["inventory"][command[2]]["tags"]:
-                                player["inventory"][command[2]]["tags"]["locked"] = 0
-                            if player["inventory"][command[2]]["tags"]["locked"]:
-                                player["inventory"][command[2]]["tags"]["locked"] = 0
+                                print("There's no reaction when you use your {0} on your {1}".format(command[1],command[2]))
+                        else:# item2 not found
+                            print("You can't find a {0} to use your {1} on".format(command[2],command[1]))
+                else: # check in room        
+                    item = depth_search(game["pages"][page]["props"], command[1])
+                    if item: # if the applying prop is in the room
+                        item2 = depth_search(game["pages"][page]["props"], command[2])
+                        if item2: # if the receiving prop is in the room
+                            if "key" in item["tags"] and "lock" in item2["tags"] and item["tags"]["key"] == item2["tags"]["lock"]: # if lock-and-key combo match, change "locked" status
+                                # room to room
+                                if "locked" not in item2["tags"]:
+                                    item2["tags"]["locked"] = 0
+                                if item2["tags"]["locked"]: # if locked
+                                    game["pages"][page]["props"][command[2]]["tags"]["locked"] = 0
+                                else: # else unlocked
+                                    game["pages"][page]["props"][command[2]]["tags"]["locked"] = 1
+                                used = True
                             else:
-                                player["inventory"][command[2]]["tags"]["locked"] = 1
-                            used = True
-                        else:
-                            print("There's no reaction when you use the {0} from the room on your {1}".format(command[1],command[2]))
-                    else:
-                        print("You can't find a {0} to use your {1} on".format(command[2],command[1]))
-                else:
-                    print("You can't find a {0}".format(command[1]))
+                                print("There's no reaction when you try to use the {0} on this area's {1}".format(command[1],command[2]))
+                        else: # either the player has the receiving item or it doesn't exist
+                            item2 = depth_search(player["inventory"], command[2])
+                            if item2: # if the player has the receiving item
+                                if "key" in item["tags"] and "lock" in item2["tags"] and item["tags"]["key"] == item2["tags"]["lock"]: # if applicable
+                                    # room to inv
+                                    if "locked" not in item2["tags"]:
+                                        item2["tags"]["locked"] = 0
+                                    if item2["tags"]["locked"]:
+                                        player["inventory"][command[2]]["tags"]["locked"] = 0
+                                    else:
+                                        player["inventory"][command[2]]["tags"]["locked"] = 1
+                                    used = True
+                                else:
+                                    print("There's no reaction when you use the {0} from the room on your {1}".format(command[1],command[2]))
+                            else:
+                                print("You can't find a {0} to use the {1} on".format(command[2],command[1]))
+                    else: # item1 not found 
+                        print("You can't find a {0}".format(command[1]))
                 if used:
                     print("It worked!")
                     look(game, page, player, ["look",command[2]])
